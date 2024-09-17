@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders</title>
+    <link href="./src/output.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #030305;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            position: relative;
+        }
+
+        #main-menu {
+            width: 800px;
+            height: 800px;
+            background-image: url('./assets/fondo.png');
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Pixelify Sans', sans-serif;
+            color: white;
+            position: fixed; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+        }
+
+
+        #game-container {
+            display: none;
+            position: absolute; 
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #main-menu h1 {
+            font-size: 60px;
+            margin-bottom: 50px;
+            text-shadow: 2px 2px #d11ab6;
+        }
+        #start-button {
+            padding: 20px 40px;
+            font-size: 30px;
+            cursor: pointer;
+            background-color: #d11aac;
+            border: none;
+            color: white;
+            border-radius: 10px;
+            transition: background-color 0.3s;
+        }
+        #start-button:hover {
+            background-color: #5914a8;
+        }
+        
+        canvas {
+            display: block; 
+        }
+    </style>
+</head>
+<body>
+    <div id="main-menu">
+        <h1>Space Invaders</h1>
+        <button id="start-button">Start Game</button>
+    </div>
+
+    <div id="game-container">
+        <canvas id="my_canvas" width="800" height="800"></canvas>
+    </div>
+
+    <script type="module">
+        import { objeto } from './objeto.js';
+        import { entidad } from './entidad.js';
+
+        const my_canvas = document.getElementById('my_canvas');
+        const ctx = my_canvas.getContext('2d');
+        var direccion = "";
+        var score = 0;
+        var pause = false;
+        var highScore = localStorage.getItem('highScore') || 0;
+        var gameRunning = false;
+        var enemyFireInterval;
+        var enemigosGenerados = true; 
+
+        const mainMenu = document.getElementById('main-menu');
+        const gameContainer = document.getElementById('game-container');
+        const startButton = document.getElementById('start-button');
+
+        startButton.addEventListener('click', function() {
+            mainMenu.style.display = 'none';
+            gameContainer.style.display = 'block';
+            startGame();
+        });
+
+        var myMusic = new sound("musicaFondo.mp3");
+        var disparoSonido = new sound("laser.mp3");
+        var dano = new sound("hit.mp3");
+        var pauseSound = new Audio('pause.mp3');
+
+        const naveEnemiga1 = new Image();
+        naveEnemiga1.src = './assets/ship1.png';
+        
+        const naveEnemiga2 = new Image();
+        naveEnemiga2.src = './assets/ship2.png';
+        
+        const naveEnemiga3 = new Image();
+        naveEnemiga3.src = './assets/ship6.png';
+
+        const fondo = new Image();
+        fondo.src = './assets/fondo.png';
+
+        const naveNor = new Image();
+        naveNor.src = './assets/normal.png';
+
+        const naveIzq = new Image();
+        naveIzq.src = './assets/izquierda.png';
+
+        const naveDer = new Image();
+        naveDer.src = './assets/derecha.png';
+
+        const vida = new Image();
+        vida.src = './assets/vida.png';
+
+        var disparando = false;
+        var nave;
+        var barraVida;
+        var enemigosTipo1 = [];
+        var enemigosTipo2 = [];
+        var enemigosTipo3 = [];
+        var balas = [];
+        var balasEnemigos = [];
+
+        document.addEventListener('keydown', function(event) {
+            if (!gameRunning) return;
+            switch (event.key) {
+                case 'a':
+                    direccion = "a";
+                    break;
+                case 'd':
+                    direccion = "d";
+                    break;
+                case 'p':
+                    pause = !pause;
+                    pauseSound.play();
+                    if (pause) {
+                        myMusic.stop();
+                    } else {
+                        myMusic.play();
+                    }
+                    break;
+                case ' ':
+                    disparando = true;
+                    disparoSonido.play();
+                    break;
+                default:
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', function(event) {
+            if (!gameRunning) return;
+            switch (event.key) {
+                case 'a':
+                case 'd':
+                    direccion = "";
+                    break;
+                default:
+                    break;
+            }
+        });
+
+        function sound(src) {
+            this.sound = document.createElement("audio");
+            this.sound.src = src;
+            this.sound.setAttribute("preload", "auto");
+            this.sound.setAttribute("controls", "none");
+            this.sound.style.display = "none";
+            document.body.appendChild(this.sound);
+            this.play = function(){
+                this.sound.play();
+            }
+            this.stop = function(){
+                this.sound.pause();
+            }
+        }
+
+        function startGame() {
+            score = 0;
+            direccion = "";
+            pause = false;
+            nave = new entidad(700, 620, 70, 70, 5, nave, 3);
+            barraVida = new objeto(650, 720, 140, 43, 0, null);
+            enemigosTipo1 = [];
+            enemigosTipo2 = [];
+            enemigosTipo3 = [];
+            balas = [];
+            balasEnemigos = [];
+            enemigosGenerados = true; 
+            generarEnemigos();
+            gameRunning = true;
+            enemyFireInterval = setInterval(generaBalaEnemigos, 1000);
+            myMusic.play();
+            requestAnimationFrame(pintar);
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            clearInterval(enemyFireInterval);
+            myMusic.stop();
+            mainMenu.style.display = 'block';
+            gameContainer.style.display
+            = 'none';
+        }
+
+        function update() {
+            if (!pause) {
+                switch (direccion) {
+                    case "a": 
+                        nave.x -= nave.v;
+                        nave.image = naveIzq;
+                        nave.w = 25;
+                        if (nave.x <= 0) {
+                            nave.x = 0;
+                        }
+                        break;
+                    case "d":  
+                        nave.x += nave.v;
+                        nave.image = naveDer;
+                        nave.w = 25;
+                        if (nave.x + nave.w >= 800) {
+                            nave.x = 800 - nave.w; 
+                        }
+                        break;
+                    default:
+                        nave.image = naveNor;
+                        nave.w = 50;
+                        break;
+                }
+                if (disparando) {
+                    generaBala();
+                    disparando = false;
+                }
+
+                balas = balas.filter(bala => bala.y >= 0);
+
+                moverEnemigos();
+
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('highScore', highScore);
+                }
+                checkCollisions();
+            }
+
+        }
+
+        function generaBala () {
+            var bala = new objeto(nave.x + nave.w / 2, (nave.y - 30) + nave.h / 2, 10, 10, 5, null);
+            balas.push(bala);
+        }
+
+        function generaBalaEnemigos() {
+            const tiposEnemigos = [enemigosTipo1, enemigosTipo2, enemigosTipo3];
+            tiposEnemigos.forEach(enemigos => {
+                if (enemigos.length > 0) {
+                    var balaRandom = Math.floor(Math.random() * enemigos.length); 
+                    var enemigoSeleccionado = enemigos[balaRandom]; 
+                    var bala = new objeto(enemigoSeleccionado.x + enemigoSeleccionado.w / 2, enemigoSeleccionado.y + enemigoSeleccionado.h / 2, 10, 10, 5, null);
+                    balasEnemigos.push(bala); 
+                }
+            });
+        }
+
+        function generarEnemigos() {
+            let horizontal1 = 0;
+            let horizontal2 = 0;
+            let horizontal3 = 0;
+            for (let i = 0; i < 6; i++) {
+                var enemigo = new entidad(
+                    horizontal3 += 110,
+                    100,  
+                    100, 
+                    125,    
+                    0.5,
+                    naveEnemiga3,
+                    3
+                );
+                enemigosTipo1.push(enemigo);
+            }
+
+            for (let i = 0; i < 10; i++) {
+                var enemigo = new entidad(
+                    horizontal1 += 70,
+                    400, 
+                    40,   
+                    75,    
+                    0.5,
+                    naveEnemiga1,
+                    1
+                );
+                enemigosTipo3.push(enemigo);
+            }
+            for (let i = 0; i < 8; i++) {
+                var enemigo = new entidad(
+                    horizontal2 += 90,
+                    250, 
+                    50,   
+                    100,    
+                    0.5,
+                    naveEnemiga2,
+                    2
+                );
+                enemigosTipo2.push(enemigo);
+            }
+        }
+
+        let todosEnemigos = [];
+        let direccionEnemigos = 1;
+        function moverEnemigos() {
+            todosEnemigos = enemigosTipo1.concat(enemigosTipo2, enemigosTipo3);
+            let moverAbajo = false;
+
+            for (let i = 0; i < todosEnemigos.length; i++) {
+                todosEnemigos[i].x += todosEnemigos[i].v * direccionEnemigos;
+
+                if (todosEnemigos[i].x + todosEnemigos[i].w >= 775) {
+                    direccionEnemigos = -1;  
+                    moverAbajo = true;
+                }
+                if (todosEnemigos[i].x <= 25) {
+                    direccionEnemigos = 1;  
+                    moverAbajo = true;
+                }
+            }
+
+            if (moverAbajo) {
+                for (let i = 0; i < todosEnemigos.length; i++) {
+                    todosEnemigos[i].y += 5;
+                }
+            }
+        }
+
+        function checkCollisions() {
+            [enemigosTipo1, enemigosTipo2, enemigosTipo3].forEach((enemigos, tipoIndex) => {
+                for (let i = enemigos.length - 1; i >= 0; i--) {
+                    for (let j = balas.length - 1; j >= 0; j--) {
+                        if (balas[j].tocando(enemigos[i])) {
+                            score += 10;
+                            enemigos[i].vida -= 1;
+                            balas.splice(j, 1);
+                            dano.play();
+                            if (enemigos[i].vida <= 0) {
+                                enemigos.splice(i, 1);
+                            }
+                            break;
+                        }
+                    }
+                }
+            });
+
+            for (let i = balasEnemigos.length - 1; i >= 0; i--) {
+                if (balasEnemigos[i].tocando(nave)) {
+                    barraVida.w -= 50;
+                    balasEnemigos.splice(i, 1);
+                    if (barraVida.w <= 0) {
+                        gameOver();
+                    }
+                }
+            }
+
+            if (enemigosTipo1.length === 0 && enemigosTipo2.length === 0 && enemigosTipo3.length === 0 && enemigosGenerados) {
+                enemigosGenerados = false; 
+                setTimeout(() => {
+                    generarEnemigos();
+                    enemigosGenerados = true;
+                }, 1000); 
+            }
+        }
+
+        function pintar() {
+            if (!gameRunning) {
+                return;
+            }
+            update();
+
+            ctx.drawImage(fondo, 0, 0, 800, 800);
+
+            balas.forEach(element => {
+                ctx.fillStyle = "lime";
+                ctx.fillRect(element.x, element.y, element.w, element.h);
+                element.y -= element.v;
+            });
+
+            enemigosTipo3.forEach(element => {
+                ctx.drawImage(element.image, element.x, element.y, element.w, element.h);
+            });
+            
+            enemigosTipo2.forEach(element => {
+                ctx.drawImage(element.image, element.x, element.y, element.w, element.h);
+            }); 
+      
+            enemigosTipo1.forEach(element => {
+                ctx.drawImage(element.image, element.x, element.y, element.w, element.h);
+            });
+
+            balasEnemigos.forEach(element => {
+                ctx.fillStyle = "red";
+                ctx.fillRect(element.x, element.y, element.w, element.h);
+                element.y += element.v;
+            });
+
+            ctx.fillStyle = "red";  
+            ctx.fillRect(barraVida.x, barraVida.y, barraVida.w, barraVida.h);
+
+            ctx.drawImage(nave.image, nave.x, nave.y, nave.w, nave.h);
+            ctx.drawImage(vida, 614, 715, 180, 55);
+
+            ctx.font = "40px 'Pixelify Sans', sans-serif";
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "#d1601a";
+            ctx.strokeText("score: " + score, 590, 70);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText("score: " + score, 590, 70);
+
+            ctx.font = "40px 'Pixelify Sans', sans-serif";
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "#d1601a";
+            ctx.strokeText("highscore: " + highScore, 70, 70);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText("highscore: " + highScore, 70, 70);
+
+            if (pause) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+                ctx.fillRect(0, 0, 800, 800);
+                ctx.font = "80px 'Pixelify Sans', sans-serif";
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = "purple";
+                ctx.strokeText("PAUSE", 250, 400);
+                ctx.fillStyle = "red";
+                ctx.fillText("PAUSE", 250, 400);
+            }
+            
+
+           
+
+            requestAnimationFrame(pintar);
+        }
+
+        fondo.onload = function() {
+        };
+    </script>
+</body>
+</html>
